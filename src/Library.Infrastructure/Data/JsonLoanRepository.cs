@@ -52,4 +52,18 @@ public class JsonLoanRepository : ILoanRepository
             await _jsonData.LoadData();
         }
     }
+
+    public async Task<Loan?> GetActiveLoanByBookItemId(int bookItemId)
+    {
+        await _jsonData.EnsureDataLoaded();
+
+        foreach (Loan loan in _jsonData.Loans!)
+        {
+            if (loan.BookItemId == bookItemId && loan.ReturnDate == null)
+            {
+                return _jsonData.GetPopulatedLoan(loan);
+            }
+        }
+        return null;
+    }
 }

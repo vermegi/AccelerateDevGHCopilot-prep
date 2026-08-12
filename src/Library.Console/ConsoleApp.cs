@@ -8,6 +8,7 @@ public class ConsoleApp
     ConsoleState _currentState = ConsoleState.PatronSearch;
 
     List<Patron> matchingPatrons = new List<Patron>();
+    List<BookAvailability> matchingBooks = new List<BookAvailability>();
 
     Patron? selectedPatronDetails = null;
     Loan selectedLoanDetails = null!;
@@ -16,13 +17,15 @@ public class ConsoleApp
     ILoanRepository _loanRepository;
     ILoanService _loanService;
     IPatronService _patronService;
+    IBookService _bookService;
 
-    public ConsoleApp(ILoanService loanService, IPatronService patronService, IPatronRepository patronRepository, ILoanRepository loanRepository)
+    public ConsoleApp(ILoanService loanService, IPatronService patronService, IBookService bookService, IPatronRepository patronRepository, ILoanRepository loanRepository)
     {
         _patronRepository = patronRepository;
         _loanRepository = loanRepository;
         _loanService = loanService;
         _patronService = patronService;
+        _bookService = bookService;
     }
 
     public async Task Run()
@@ -42,6 +45,12 @@ public class ConsoleApp
                     break;
                 case ConsoleState.LoanDetails:
                     _currentState = await LoanDetails();
+                    break;
+                case ConsoleState.BookSearch:
+                    _currentState = await BookSearch();
+                    break;
+                case ConsoleState.BookSearchResults:
+                    _currentState = await BookSearchResults();
                     break;
             }
         }
@@ -94,7 +103,7 @@ public class ConsoleApp
 
     async Task<ConsoleState> PatronSearchResults()
     {
-        CommonActions options = CommonActions.Select | CommonActions.SearchPatrons | CommonActions.Quit;
+        CommonActions options = CommonActions.Select | CommonActions.SearchPatrons | CommonActions.SearchBooks | CommonActions.Quit;
         CommonActions action = ReadInputOptions(options, out int selectedPatronNumber);
         if (action == CommonActions.Select)
         {
@@ -118,6 +127,10 @@ public class ConsoleApp
         {
             return ConsoleState.PatronSearch;
         }
+        else if (action == CommonActions.SearchBooks)
+        {
+            return ConsoleState.BookSearch;
+        }
 
         throw new InvalidOperationException("An input option is not handled.");
     }
@@ -136,6 +149,7 @@ public class ConsoleApp
             {
                 "q" when options.HasFlag(CommonActions.Quit) => CommonActions.Quit,
                 "s" when options.HasFlag(CommonActions.SearchPatrons) => CommonActions.SearchPatrons,
+                "b" when options.HasFlag(CommonActions.SearchBooks) => CommonActions.SearchBooks,
                 "m" when options.HasFlag(CommonActions.RenewPatronMembership) => CommonActions.RenewPatronMembership,
                 "e" when options.HasFlag(CommonActions.ExtendLoanedBook) => CommonActions.ExtendLoanedBook,
                 "r" when options.HasFlag(CommonActions.ReturnLoanedBook) => CommonActions.ReturnLoanedBook,
@@ -170,6 +184,10 @@ public class ConsoleApp
         {
             Console.WriteLine(" - \"s\" for new search");
         }
+        if (options.HasFlag(CommonActions.SearchBooks))
+        {
+            Console.WriteLine(" - \"b\" to search books");
+        }
         if (options.HasFlag(CommonActions.Quit))
         {
             Console.WriteLine(" - \"q\" to quit");
@@ -193,7 +211,7 @@ public class ConsoleApp
             loanNumber++;
         }
 
-        CommonActions options = CommonActions.SearchPatrons | CommonActions.Quit | CommonActions.Select | CommonActions.RenewPatronMembership;
+        CommonActions options = CommonActions.SearchPatrons | CommonActions.SearchBooks | CommonActions.Quit | CommonActions.Select | CommonActions.RenewPatronMembership;
         CommonActions action = ReadInputOptions(options, out int selectedLoanNumber);
         if (action == CommonActions.Select)
         {
@@ -217,6 +235,10 @@ public class ConsoleApp
         {
             return ConsoleState.PatronSearch;
         }
+        else if (action == CommonActions.SearchBooks)
+        {
+            return ConsoleState.BookSearch;
+        }
         else if (action == CommonActions.RenewPatronMembership)
         {
             var status = await _patronService.RenewMembership(selectedPatronDetails.Id);
@@ -237,7 +259,7 @@ public class ConsoleApp
         Console.WriteLine($"Returned: {(selectedLoanDetails.ReturnDate != null).ToString()}");
         Console.WriteLine();
 
-        CommonActions options = CommonActions.SearchPatrons | CommonActions.Quit | CommonActions.ReturnLoanedBook | CommonActions.ExtendLoanedBook;
+        CommonActions options = CommonActions.SearchPatrons | CommonActions.SearchBooks | CommonActions.Quit | CommonActions.ReturnLoanedBook | CommonActions.ExtendLoanedBook;
         CommonActions action = ReadInputOptions(options, out int selectedLoanNumber);
 
         if (action == CommonActions.ExtendLoanedBook)
@@ -267,6 +289,75 @@ public class ConsoleApp
         else if (action == CommonActions.SearchPatrons)
         {
             return ConsoleState.PatronSearch;
+        }
+        else if (action == CommonActions.SearchBooks)
+        {
+            return ConsoleState.BookSearch;
+        }
+
+        throw new InvalidOperationException("An input option is not handled.");
+    }
+
+    async Task<ConsoleState> BookSearch()
+    {
+        string searchInput = ReadBookTitle();
+
+        List<BookAvailability> results = await _bookService.SearchBookAvailability(searchInput);
+
+        // Guard-style clauses for edge cases
+        if (results.Count > 20)
+        {
+            Console.WriteLine("More than 20 books satisfy the search, please provide more specific input...");
+            return ConsoleState.BookSearch;
+        }
+        else if (results.Count == 0)
+        {
+            Console.WriteLine("No matching books found.");
+            return ConsoleState.BookSearch;
+        }
+
+        matchingBooks = results;
+        Console.WriteLine("Matching Books:");
+        PrintBooksList(matchingBooks);
+        return ConsoleState.BookSearchResults;
+    }
+
+    static string ReadBookTitle()
+    {
+        string? searchInput = null;
+        while (String.IsNullOrWhiteSpace(searchInput))
+        {
+            Console.Write("Enter a string to search for books by title: ");
+
+            searchInput = Console.ReadLine();
+        }
+        return searchInput;
+    }
+
+    static void PrintBooksList(List<BookAvailability> matchingBooks)
+    {
+        foreach (BookAvailability bookAvailability in matchingBooks)
+        {
+            Console.WriteLine($"{bookAvailability.Book.Title} - {bookAvailability.Book.Author!.Name} - {bookAvailability.AvailableCopies} / {bookAvailability.TotalCopies} available");
+        }
+    }
+
+    async Task<ConsoleState> BookSearchResults()
+    {
+        CommonActions options = CommonActions.SearchBooks | CommonActions.SearchPatrons | CommonActions.Quit;
+        CommonActions action = ReadInputOptions(options, out int _);
+
+        if (action == CommonActions.Quit)
+        {
+            return ConsoleState.Quit;
+        }
+        else if (action == CommonActions.SearchPatrons)
+        {
+            return ConsoleState.PatronSearch;
+        }
+        else if (action == CommonActions.SearchBooks)
+        {
+            return ConsoleState.BookSearch;
         }
 
         throw new InvalidOperationException("An input option is not handled.");

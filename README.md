@@ -39,12 +39,25 @@ Library App is a modular application designed to manage library operations such 
   - `Patron` - Represents a library patron.
   - `Loan` - Represents a loan transaction.
 - **Interfaces**
-  - `IBookRepository` - Interface for book-related data operations.
+  - `IBookRepository` - Interface for book/copy query operations (title search, per-book copy retrieval).
   - `IPatronRepository` - Interface for patron-related data operations.
+  - `ILoanRepository` - Interface for loan-related data operations, including bulk loan lookup by book copy.
+  - `IBookService` - Interface for searching book availability by title.
   - `ILoanService` - Interface for managing loan operations.
 - **Services**
   - `LoanService` - Implements loan-related business logic.
+  - `BookService` - Calculates title-based book availability (available vs. total physical copies).
   - `NotificationService` - Handles notifications for overdue loans.
+
+## Book Availability Search
+
+The console app supports a read-only, title-based book availability search alongside the existing patron search:
+
+- Press `b` from any patron-facing prompt to switch to book title search.
+- Enter a (partial, case-insensitive) title to search; results are capped at 20 matches.
+- Each result displays the title, author, and `available / total` physical copies. A copy is considered unavailable while it has an active loan (`ReturnDate` is `null`).
+- Press `s` from book search results to switch back to patron search, or `b` to search books again.
+- Checking out/reserving books, selecting copy details, and due-date display are out of scope for this feature.
 
 ## Usage
 

@@ -5,24 +5,28 @@ using Library.Console;
 
 public class ConsoleApp
 {
-    ConsoleState _currentState = ConsoleState.PatronSearch;
+    ConsoleState _currentState = ConsoleState.MainMenu;
 
     List<Patron> matchingPatrons = new List<Patron>();
+    List<Book> matchingBooks = new List<Book>();
 
     Patron? selectedPatronDetails = null;
     Loan selectedLoanDetails = null!;
+    Book? selectedBookDetails = null;
 
     IPatronRepository _patronRepository;
     ILoanRepository _loanRepository;
     ILoanService _loanService;
     IPatronService _patronService;
+    IBookService _bookService;
 
-    public ConsoleApp(ILoanService loanService, IPatronService patronService, IPatronRepository patronRepository, ILoanRepository loanRepository)
+    public ConsoleApp(ILoanService loanService, IPatronService patronService, IBookService bookService, IPatronRepository patronRepository, ILoanRepository loanRepository)
     {
         _patronRepository = patronRepository;
         _loanRepository = loanRepository;
         _loanService = loanService;
         _patronService = patronService;
+        _bookService = bookService;
     }
 
     public async Task Run()
@@ -31,6 +35,9 @@ public class ConsoleApp
         {
             switch (_currentState)
             {
+                case ConsoleState.MainMenu:
+                    _currentState = MainMenu();
+                    break;
                 case ConsoleState.PatronSearch:
                     _currentState = await PatronSearch();
                     break;
@@ -43,8 +50,30 @@ public class ConsoleApp
                 case ConsoleState.LoanDetails:
                     _currentState = await LoanDetails();
                     break;
+                case ConsoleState.BookSearch:
+                    _currentState = await BookSearch();
+                    break;
+                case ConsoleState.BookSearchResults:
+                    _currentState = await BookSearchResults();
+                    break;
+                case ConsoleState.BookDetails:
+                    _currentState = await BookDetails();
+                    break;
             }
         }
+    }
+
+    ConsoleState MainMenu()
+    {
+        CommonActions options = CommonActions.SearchBooks | CommonActions.SearchPatrons | CommonActions.Quit;
+        CommonActions action = ReadInputOptions(options, out _);
+        return action switch
+        {
+            CommonActions.SearchBooks => ConsoleState.BookSearch,
+            CommonActions.SearchPatrons => ConsoleState.PatronSearch,
+            CommonActions.Quit => ConsoleState.Quit,
+            _ => ConsoleState.MainMenu
+        };
     }
 
     async Task<ConsoleState> PatronSearch()
@@ -136,6 +165,7 @@ public class ConsoleApp
             {
                 "q" when options.HasFlag(CommonActions.Quit) => CommonActions.Quit,
                 "s" when options.HasFlag(CommonActions.SearchPatrons) => CommonActions.SearchPatrons,
+                "b" when options.HasFlag(CommonActions.SearchBooks) => CommonActions.SearchBooks,
                 "m" when options.HasFlag(CommonActions.RenewPatronMembership) => CommonActions.RenewPatronMembership,
                 "e" when options.HasFlag(CommonActions.ExtendLoanedBook) => CommonActions.ExtendLoanedBook,
                 "r" when options.HasFlag(CommonActions.ReturnLoanedBook) => CommonActions.ReturnLoanedBook,
@@ -170,6 +200,10 @@ public class ConsoleApp
         {
             Console.WriteLine(" - \"s\" for new search");
         }
+        if (options.HasFlag(CommonActions.SearchBooks))
+        {
+            Console.WriteLine(" - \"b\" to search books");
+        }
         if (options.HasFlag(CommonActions.Quit))
         {
             Console.WriteLine(" - \"q\" to quit");
@@ -178,6 +212,82 @@ public class ConsoleApp
         {
             Console.WriteLine("Or type a number to select a list item.");
         }
+    }
+
+    async Task<ConsoleState> BookSearch()
+    {
+        string searchInput = ReadBookSearchInput();
+        matchingBooks = await _bookService.SearchBooks(searchInput);
+
+        if (matchingBooks.Count == 0)
+        {
+            Console.WriteLine("No matching books found.");
+            return ConsoleState.BookSearch;
+        }
+
+        Console.WriteLine("Matching Books:");
+        int bookNumber = 1;
+        foreach (Book book in matchingBooks)
+        {
+            Console.WriteLine($"{bookNumber}) {book.Title} (ISBN: {book.ISBN}, ID: {book.Id})");
+            bookNumber++;
+        }
+        return ConsoleState.BookSearchResults;
+    }
+
+    static string ReadBookSearchInput()
+    {
+        string? searchInput = null;
+        while (String.IsNullOrWhiteSpace(searchInput))
+        {
+            Console.Write("Enter a title, ISBN, or book ID: ");
+            searchInput = Console.ReadLine();
+        }
+        return searchInput;
+    }
+
+    async Task<ConsoleState> BookSearchResults()
+    {
+        CommonActions options = CommonActions.Select | CommonActions.SearchBooks | CommonActions.SearchPatrons | CommonActions.Quit;
+        CommonActions action = ReadInputOptions(options, out int selectedBookNumber);
+        if (action == CommonActions.Select)
+        {
+            if (selectedBookNumber < 1 || selectedBookNumber > matchingBooks.Count)
+            {
+                Console.WriteLine("Invalid book number. Please try again.");
+                return ConsoleState.BookSearchResults;
+            }
+
+            selectedBookDetails = matchingBooks[selectedBookNumber - 1];
+            return ConsoleState.BookDetails;
+        }
+        if (action == CommonActions.SearchBooks)
+            return ConsoleState.BookSearch;
+        if (action == CommonActions.SearchPatrons)
+            return ConsoleState.PatronSearch;
+        if (action == CommonActions.Quit)
+            return ConsoleState.Quit;
+
+        throw new InvalidOperationException("An input option is not handled.");
+    }
+
+    async Task<ConsoleState> BookDetails()
+    {
+        bool? available = await _bookService.IsBookAvailable(selectedBookDetails!.Id);
+        Console.WriteLine($"Title: {selectedBookDetails.Title}");
+        Console.WriteLine($"ISBN: {selectedBookDetails.ISBN}");
+        Console.WriteLine($"Available: {(available == true ? "Yes" : "No")}");
+        Console.WriteLine();
+
+        CommonActions options = CommonActions.SearchBooks | CommonActions.SearchPatrons | CommonActions.Quit;
+        CommonActions action = ReadInputOptions(options, out _);
+        return action switch
+        {
+            CommonActions.SearchBooks => ConsoleState.BookSearch,
+            CommonActions.SearchPatrons => ConsoleState.PatronSearch,
+            CommonActions.Quit => ConsoleState.Quit,
+            _ => ConsoleState.BookDetails
+        };
     }
 
     async Task<ConsoleState> PatronDetails()

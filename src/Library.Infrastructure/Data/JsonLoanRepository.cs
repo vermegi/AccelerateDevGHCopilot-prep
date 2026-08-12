@@ -27,6 +27,24 @@ public class JsonLoanRepository : ILoanRepository
         return null;
     }
 
+    public async Task<List<Loan>> GetLoansForBookItems(IEnumerable<int> bookItemIds)
+    {
+        await _jsonData.EnsureDataLoaded();
+
+        HashSet<int> ids = new HashSet<int>(bookItemIds);
+
+        List<Loan> matchingLoans = new List<Loan>();
+        foreach (Loan loan in _jsonData.Loans!)
+        {
+            if (ids.Contains(loan.BookItemId))
+            {
+                matchingLoans.Add(_jsonData.GetPopulatedLoan(loan));
+            }
+        }
+
+        return matchingLoans;
+    }
+
     public async Task UpdateLoan(Loan loan)
     {
         Loan? existingLoan = null;

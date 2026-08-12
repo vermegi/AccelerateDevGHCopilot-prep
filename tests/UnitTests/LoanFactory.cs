@@ -39,4 +39,26 @@ public static class LoanFactory
             Patron = patron
         };
     }
+
+    public static Loan CreateActiveLoanForBookItem(int bookItemId)
+    {
+        return new Loan
+        {
+            Id = loanId++,
+            BookItemId = bookItemId,
+            DueDate = DateTime.Now.AddDays(1),
+            ReturnDate = null
+        };
+    }
+
+    public static Loan CreateReturnedLoanForBookItem(int bookItemId)
+    {
+        return new Loan
+        {
+            Id = loanId++,
+            BookItemId = bookItemId,
+            DueDate = DateTime.Now.AddDays(-1),
+            ReturnDate = DateTime.Now.AddDays(-1)
+        };
+    }
 }

@@ -42,9 +42,19 @@ Library App is a modular application designed to manage library operations such 
   - `IBookRepository` - Interface for book-related data operations.
   - `IPatronRepository` - Interface for patron-related data operations.
   - `ILoanService` - Interface for managing loan operations.
+  - `IBookService` - Interface for checking book availability.
 - **Services**
   - `LoanService` - Implements loan-related business logic.
   - `NotificationService` - Handles notifications for overdue loans.
+  - `BookService` - Checks book availability by combining book items and their active loans.
+
+## Book Availability
+
+The application supports checking the availability of a book's copies. After searching for and selecting a book, you can view its availability, which lists each copy (`BookItem`) and whether it is currently available or on loan (including the due date if it is loaned out).
+
+- `IBookService.CheckAvailability(bookId)` - Returns a `BookAvailabilityResult` containing the book, the availability of each of its copies, and summary counts (`IsAvailable`, `AvailableCount`, `TotalCount`).
+- `BookAvailabilityResult` - Entity representing the overall availability of a book, including a list of `BookItemAvailability`.
+- `BookItemAvailability` - Entity representing the availability of a single copy of a book, including its due date if it is currently on loan.
 
 ## Usage
 
